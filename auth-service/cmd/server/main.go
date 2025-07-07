@@ -1,8 +1,8 @@
 package main
 
 import (
-	"auth-service/internal/app"
-	"auth-service/internal/config"
+	"github.com/Wucop228/online-shop/auth-service/internal/app"
+	"github.com/Wucop228/online-shop/auth-service/internal/config"
 	"log"
 )
 

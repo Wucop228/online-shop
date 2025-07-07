@@ -3,4 +3,4 @@ cache:
 
 auth:
   accessTokenTTL: 120m
-  refreshTokenTTL: 24h
+  refreshTokenTTL: 10080m #7 days
