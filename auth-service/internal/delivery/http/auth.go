@@ -102,7 +102,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "username or password is empty"})
 	}
 
-	hash, err := hash.HashPassword(req.Password)
+	hashPassword, err := hash.HashPassword(req.Password)
 	if err != nil {
 		return c.JSON(http.StatusBadGateway, echo.Map{"error": err.Error()})
 	}
@@ -110,7 +110,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	user := models.User{
 		Username:     req.Username,
 		Email:        req.Email,
-		PasswordHash: string(hash),
+		PasswordHash: string(hashPassword),
 	}
 	if err := repository.CreateUser(h.db, &user); err != nil {
 		return c.JSON(http.StatusBadGateway, echo.Map{"error": err.Error()})
@@ -148,8 +148,10 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 
-	setTokenCookie(c, "access_token", accessTokenSigned, time.Now().Add(h.AuthConfig.AccessTokenTTL), "/")
-	setTokenCookie(c, "refresh_token", refreshTokenSigned, time.Now().Add(h.AuthConfig.RefreshTokenTTL), "/")
+	setTokenCookie(c, "access_token", accessTokenSigned,
+		time.Now().Add(h.AuthConfig.AccessTokenTTL), "/")
+	setTokenCookie(c, "refresh_token", refreshTokenSigned,
+		time.Now().Add(h.AuthConfig.RefreshTokenTTL), "/")
 
 	return c.JSON(http.StatusOK, echo.Map{
 		"access_token":  accessTokenSigned,
@@ -159,18 +161,26 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	var reqToken RequestRefreshToken
-	if err := c.Bind(&reqToken); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": err.Error()})
-	}
-
-	if reqToken.RefreshToken == "" {
-		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "refresh token is required"})
+	if err := c.Bind(&reqToken); err != nil || reqToken.RefreshToken == "" {
+		if cookie, err := c.Cookie("refresh_token"); err == nil {
+			reqToken.RefreshToken = cookie.Value
+		} else {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "refresh token required"})
+		}
 	}
 
 	var user models.User
 	user, err := repository.GetUserByRefreshToken(h.db, reqToken.RefreshToken)
 	if err != nil {
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "invalid refresh token"})
+	}
+
+	token, err := repository.GetRefreshToken(h.db, reqToken.RefreshToken)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "invalid refresh token"})
+	}
+	if time.Now().After(time.Now().Add(token.Expiry)) {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "refresh token expired"})
 	}
 
 	accessTokenSigned, err := GenerateAccessToken(h, c, user)
@@ -183,8 +193,10 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": err.Error()})
 	}
 
-	setTokenCookie(c, "access_token", accessTokenSigned, time.Now().Add(h.AuthConfig.AccessTokenTTL), "/")
-	setTokenCookie(c, "refresh_token", refreshTokenSigned, time.Now().Add(h.AuthConfig.RefreshTokenTTL), "/")
+	setTokenCookie(c, "access_token", accessTokenSigned,
+		time.Now().Add(h.AuthConfig.AccessTokenTTL), "/")
+	setTokenCookie(c, "refresh_token", refreshTokenSigned,
+		time.Now().Add(h.AuthConfig.RefreshTokenTTL), "/")
 
 	return c.JSON(http.StatusCreated, echo.Map{
 		"access_token": accessTokenSigned,
