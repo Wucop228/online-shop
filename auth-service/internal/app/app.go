@@ -24,10 +24,15 @@ func Run(cfg *config.Config) {
 		log.Fatal("DB ping error: ", err)
 	}
 
+	authCfg := config.AuthConfig{AccessTokenTTL: cfg.AccessTokenTTL, RefreshTokenTTL: cfg.RefreshTokenTTL,
+		JWTSecret: cfg.JWTSecret, RefreshSecret: cfg.RefreshSecret}
+
 	e := echo.New()
-	h := http.NewAuthHandler(db, "abc", "123")
+	h := http.NewAuthHandler(db, &authCfg)
 
 	e.POST("/create-user", h.Register)
+	e.POST("/login", h.Login)
+	e.POST("/refresh", h.RefreshToken)
 
 	if err := e.Start(fmt.Sprintf(":%s", cfg.ServerPort)); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

@@ -35,6 +35,8 @@ type CacheConfig struct {
 type AuthConfig struct {
 	AccessTokenTTL  time.Duration `yaml:"accessTokenTTL"`
 	RefreshTokenTTL time.Duration `yaml:"refreshTokenTTL"`
+	JWTSecret       string
+	RefreshSecret   string
 }
 
 type AppConfig struct {
@@ -97,6 +99,8 @@ func LoadConfig() (*Config, error) {
 		AuthConfig: AuthConfig{
 			AccessTokenTTL:  cfg.Auth.AccessTokenTTL,
 			RefreshTokenTTL: cfg.Auth.RefreshTokenTTL,
+			JWTSecret:       os.Getenv("JWT_SECRET"),
+			RefreshSecret:   os.Getenv("REFRESH_SECRET"),
 		},
 	}, nil
 }
